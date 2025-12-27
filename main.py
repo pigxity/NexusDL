@@ -1,25 +1,24 @@
+import curl_cffi
 import requests
 import json
 from time import sleep
 import os
-import requests
 import time
 import threading
 import math
 from tkinter import Tk
 from classes import *
 
-gameToId = { # nexus has both numerical and text game ids, this converts the gameName in modlist to both ids.
-    "SkyrimSpecialEdition": ["skyrimspecialedition", 1704],
-    "Skyrim": ["skyrim", 110]
-}
+# nexus has both numerical and text game ids, this converts the gameName in modlist to both ids.
+with open('gamemap.json', 'r') as f:
+    gameToId = json.load(f)
 
 defaultConfig = """{
     "cache_file": "./downloadedmods.json",
     "download_dir": "./download",
     "temp_dir": "./temp",
     "modlist_file": "./modlist",
-    "threads": 6,
+    "threads": 4,
 
     "nexus_sessions": [
         "your nexus session token goes here"
@@ -57,13 +56,14 @@ def getDownloadUrl(fileid, gameid, threadNum):
         threadNum = 0
     apiurl = "https://www.nexusmods.com/Core/Libs/Common/Managers/Downloads?GenerateDownloadUrl"
     cookies = {"nexusmods_session": nexusSessions[threadNum]}
-    resp = requests.post(apiurl, cookies=cookies, data={
+    resp = curl_cffi.post(apiurl, impersonate="chrome", cookies=cookies, data={
         "fid": fileid,
         "game_id": gameid
     })
     if resp.status_code == 200:
         return resp.json()["url"]#.split('&user_id')[0]
     else:
+        print(cookies)
         print(resp.status_code)
         print(resp.text)
         exit()
@@ -75,10 +75,9 @@ def downloadFile(url, fileid, filename, threadNum):
         threadNum = 0
     #global threadStatus
     cookies = {"nexusmods_session": nexusSessions[threadNum]}
-    headers = {'User-Agent': f'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36{threadNum * 3784}'}
     sleep(2)
     while True:
-        response = requests.get(url, stream=True, cookies=cookies, headers=headers)
+        response = requests.get(url, stream=True, cookies=cookies)
         if response.status_code == 200:
             #filename = url.split('/')[-1].split('?')[0] # extract filename from url
 
@@ -143,7 +142,7 @@ def downloadModThread(mods, urlcache, start_index, end_index, totalmods, threadN
         try:
             print(f"Mod: {i + 1}/{totalmods} - {state['Name']}")
 
-            downloadUrl = getDownloadUrl(state['FileID'], nexusGameId[1], threadNum)
+            downloadUrl = getDownloadUrl(state['FileID'], nexusGameId, threadNum)
             updateThreadStatus(threadNum, f"Downloading Mod: {state['Name']}")
             downloadFile(downloadUrl, state['FileID'], mod['Name'], threadNum)
             urlcache[state['ModID']] = ({"url": downloadUrl, "downloaded": True})
@@ -224,21 +223,3 @@ def downloadMods(modlist):
     print("Finished creating url cache file")
 
 downloadMods(modlist)
-
-
-#if os.path.exists(urlcacheFile):
-#    createUrlCache(modlist)
-#    if UrlCacheErrored:
-#        "An error occured while generating url cache. Please run the program again to repair."
-#        exit()
-#
-#   sleep(10)
-
-#for mod in modlist:
-#    state = mod['State']
-#    if 'NexusDownloader' in state['$type']:
-        #nexusGameId = gameToId[state['GameName']]
-        #url = f"https://www.nexusmods.com/{nexusGameId[0]}/mods/{state['ModID']}?tab=files&file_id={state['FileID']}"
-        
-        #currentmod += 1
-        #os.system('cls')
